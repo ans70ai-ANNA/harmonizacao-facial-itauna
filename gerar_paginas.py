@@ -67,6 +67,33 @@ PAGINAS = {
                 "Agende pelo WhatsApp.",
         "wa": "Olá, vi o anúncio no Google e quero saber sobre placa de bruxismo",
     },
+    "canal": {
+        "title": "Tratamento de Canal em Itaúna-MG | Dra. Tatiane Mizael",
+        "meta": "Tratamento de canal (endodontia) em Itaúna-MG, na Ampla Odontologia.",
+        "h1": "Tratamento de Canal em Itaúna-MG",
+        "subtitle": "Endodontia com avaliação individualizada — Dra. Tatiane Mizael, Ampla Odontologia",
+        "body": "Avaliação individualizada para tratamento de canal, no centro de Itaúna. "
+                "Fale com a gente pelo WhatsApp.",
+        "wa": "Olá, vi o anúncio no Google e quero saber sobre tratamento de canal",
+    },
+    "proteses": {
+        "title": "Próteses Dentárias em Itaúna-MG | Dra. Tatiane Mizael",
+        "meta": "Próteses dentárias fixas, parciais e removíveis em Itaúna-MG, na Ampla Odontologia.",
+        "h1": "Próteses Dentárias em Itaúna-MG",
+        "subtitle": "Prótese fixa, parcial ou removível — Dra. Tatiane Mizael, Ampla Odontologia",
+        "body": "Avaliação individualizada para definir a prótese adequada ao seu caso. "
+                "Agende pelo WhatsApp.",
+        "wa": "Olá, vi o anúncio no Google e quero saber sobre próteses dentárias",
+    },
+    "convenio": {
+        "title": "Atendimento por Convênio Odontológico em Itaúna-MG | Dra. Tatiane Mizael",
+        "meta": "Atendimento odontológico por convênio em Itaúna-MG, na Ampla Odontologia.",
+        "h1": "Atendimento por Convênio Odontológico",
+        "subtitle": "Ampla Odontologia — Dra. Tatiane Mizael, no centro de Itaúna-MG",
+        "body": "Atendemos diversos convênios odontológicos. Confirme o seu e agende sua avaliação "
+                "diretamente pelo WhatsApp.",
+        "wa": "Olá, vi o anúncio no Google e quero saber sobre atendimento por convênio odontológico",
+    },
 }
 
 TEMPLATE = """<!doctype html>
