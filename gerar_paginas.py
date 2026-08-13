@@ -1,234 +1,341 @@
 #!/usr/bin/env python3
 """
-Gera uma landing page por servico, a partir do mesmo template visual da pagina atual.
+Gera uma landing page por servico a partir do template visual criado na Lovable
+(_template_lovable.html), aplicando o mesmo design a todas as paginas.
 
-Cada pagina: mesmo visual, mesmo rastreamento de conversao, mesmo rodape (CRO — exigencia
-do CFO), mas com H1/subtitulo/corpo e TEXTO PRE-PREENCHIDO DO WHATSAPP proprios do servico.
+O template ja veio limpo: HTML+CSS puros, sem framework, sem CDN externo, sem o
+badge/analytics que a hospedagem da Lovable injeta (removidos em 13/08/2026).
 
-Regras de conformidade aplicadas a todas:
-  - nenhuma promessa de resultado (CFO)
-  - nenhum preco
+Cada pagina: mesmo visual, mesmo rastreamento de conversao, mesmo rodape (CRO —
+exigencia do CFO), mas com titulo/subtitulo/paragrafo e TEXTO PRE-PREENCHIDO DO
+WHATSAPP proprios do servico.
+
+Regras de conformidade verificadas automaticamente antes de gravar:
+  - nenhuma promessa de resultado (CFO Art. 44, I)
+  - nenhum preco, desconto ou modalidade de pagamento (CFO Art. 44, I)
+  - nenhuma mencao a cartao de desconto/beneficio (CFO Art. 44, XIV)
+  - nenhum "antes e depois" (CFO Art. 44, XII)
+  - nenhum depoimento/nome de paciente (CFO Art. 44, VI)
   - nenhuma mencao a "botox"/"toxina botulinica" (politica Google Ads)
-  - marcador "vi o anuncio no Google" preservado em todas (medicao da ANNA, regra R2 doc 09)
+  - marcador "vi o anuncio no Google" preservado em todas (medicao da ANNA, doc 09 R2)
 
 Uso: python3 gerar_paginas.py
 """
 import os
+import re
+import sys
 import urllib.parse
 
 WHATS = "5537999220550"
 CONV_TAG = "AW-18305804748/opogCLXGxM0cEMzT8ZhE"
 GTAG_ID = "AW-18305804748"
 MAPS = "https://share.google/Lxpgk0PGhm8d8SXDa"
+# Mesmo link do perfil no Google — leva ao perfil onde as avaliacoes aparecem.
+AVALIACOES = "https://share.google/Lxpgk0PGhm8d8SXDa"
+
+# TELEFONE: deliberadamente NAO publicado. A ANNA nao atende ligacao, e o numero
+# (37) 99918-4874 nao existe na configuracao dela. Caso real de 06/08/2026: emergencia
+# com duas escalacoes de encaixe expiradas sem resposta humana. Publicar telefone criaria
+# promessa de atendimento sem lastro. Confirmado com a instancia da ANNA em 13/08/2026.
+
+# Horario CONFIRMADO pelo Anderson via instancia da ANNA em 13/08/2026.
+HORARIO = "Segunda a sexta, 8h às 18h"
 
 PAGINAS = {
+    "": {  # raiz — harmonizacao facial (destino do grupo G5)
+        "title": "Harmonização Facial em Itaúna-MG | Dra. Tatiane Mizael",
+        "meta": "Harmonização facial com a Dra. Tatiane Mizael — Ampla Odontologia, Itaúna-MG.",
+        "h1": "Harmonização Facial em Itaúna-MG",
+        "subtitle": "Dra. Tatiane Mizael — rinomodelação, preenchimento e harmonização facial em Itaúna",
+        "body": "Atendimento humanizado e avaliação individualizada para cada paciente.",
+        "wa": "Olá, vi o anúncio no Google e quero saber mais sobre harmonização facial",
+    },
     "clareamento": {
         "title": "Clareamento Dental em Itaúna-MG | Dra. Tatiane Mizael",
         "meta": "Clareamento dental a laser na Ampla Odontologia, com a Dra. Tatiane Mizael — Itaúna-MG.",
         "h1": "Clareamento Dental em Itaúna-MG",
-        "subtitle": "Clareamento a laser com equipamento importado, na Ampla Odontologia — Dra. Tatiane Mizael",
-        "body": "Avaliação individualizada para definir a técnica adequada ao seu caso. "
-                "Tire suas dúvidas diretamente pelo WhatsApp.",
+        "subtitle": "Dra. Tatiane Mizael — clareamento a laser com equipamento importado, em Itaúna",
+        "body": "Avaliação individualizada para definir a técnica adequada ao seu caso.",
         "wa": "Olá, vi o anúncio no Google e quero saber sobre clareamento dental",
     },
     "dentista": {
         "title": "Dentista em Itaúna-MG | Ampla Odontologia",
         "meta": "Clínica odontológica no centro de Itaúna-MG, com a Dra. Tatiane Mizael.",
         "h1": "Dentista em Itaúna-MG",
-        "subtitle": "Clínica Ampla Odontologia, no centro de Itaúna — Dra. Tatiane Mizael",
-        "body": "Atendimento humanizado no centro de Itaúna, perto do comércio e do ponto de ônibus. "
-                "Agende sua consulta pelo WhatsApp.",
+        "subtitle": "Dra. Tatiane Mizael — Ampla Odontologia, no centro de Itaúna",
+        "body": "Atendimento humanizado no centro de Itaúna, perto do comércio e do ponto de ônibus.",
         "wa": "Olá, vi o anúncio no Google e quero saber sobre consulta odontológica",
     },
     "limpeza": {
         "title": "Limpeza Dental em Itaúna-MG | Dra. Tatiane Mizael",
         "meta": "Limpeza dental, profilaxia e remoção de tártaro em Itaúna-MG, na Ampla Odontologia.",
         "h1": "Limpeza Dental em Itaúna-MG",
-        "subtitle": "Profilaxia e remoção de tártaro — Dra. Tatiane Mizael, Ampla Odontologia",
-        "body": "Limpeza profissional com avaliação individualizada, no centro de Itaúna. "
-                "Agende pelo WhatsApp.",
+        "subtitle": "Dra. Tatiane Mizael — profilaxia e remoção de tártaro em Itaúna",
+        "body": "Limpeza profissional com avaliação individualizada, no centro de Itaúna.",
         "wa": "Olá, vi o anúncio no Google e quero saber sobre limpeza dental",
     },
     "facetas": {
         "title": "Facetas e Lentes de Contato Dental em Itaúna-MG | Dra. Tatiane Mizael",
         "meta": "Facetas de porcelana e lentes de contato dental em Itaúna-MG, na Ampla Odontologia.",
         "h1": "Facetas e Lentes de Contato Dental",
-        "subtitle": "Facetas de porcelana e resina em Itaúna-MG — Dra. Tatiane Mizael, Ampla Odontologia",
-        "body": "Avaliação individualizada para definir o que se adequa ao seu caso. "
-                "Fale com a gente pelo WhatsApp.",
+        "subtitle": "Dra. Tatiane Mizael — facetas de porcelana e resina em Itaúna",
+        "body": "Avaliação individualizada para definir o que se adequa ao seu caso.",
         "wa": "Olá, vi o anúncio no Google e quero saber sobre facetas e lentes de contato dental",
     },
     "bruxismo": {
         "title": "Placa de Bruxismo e ATM em Itaúna-MG | Dra. Tatiane Mizael",
         "meta": "Placa para bruxismo e avaliação de ATM em Itaúna-MG, na Ampla Odontologia.",
         "h1": "Placa de Bruxismo e ATM",
-        "subtitle": "Placa sob medida e avaliação de disfunção de ATM em Itaúna-MG — Dra. Tatiane Mizael",
-        "body": "Avaliação individualizada para bruxismo e dores na articulação da mandíbula. "
-                "Agende pelo WhatsApp.",
+        "subtitle": "Dra. Tatiane Mizael — placa sob medida e avaliação de ATM em Itaúna",
+        "body": "Avaliação individualizada para bruxismo e dores na articulação da mandíbula.",
         "wa": "Olá, vi o anúncio no Google e quero saber sobre placa de bruxismo",
     },
     "canal": {
         "title": "Tratamento de Canal em Itaúna-MG | Dra. Tatiane Mizael",
         "meta": "Tratamento de canal (endodontia) em Itaúna-MG, na Ampla Odontologia.",
         "h1": "Tratamento de Canal em Itaúna-MG",
-        "subtitle": "Endodontia com avaliação individualizada — Dra. Tatiane Mizael, Ampla Odontologia",
-        "body": "Avaliação individualizada para tratamento de canal, no centro de Itaúna. "
-                "Fale com a gente pelo WhatsApp.",
+        "subtitle": "Dra. Tatiane Mizael — endodontia com avaliação individualizada em Itaúna",
+        "body": "Avaliação individualizada para tratamento de canal, no centro de Itaúna.",
         "wa": "Olá, vi o anúncio no Google e quero saber sobre tratamento de canal",
     },
     "proteses": {
         "title": "Próteses Dentárias em Itaúna-MG | Dra. Tatiane Mizael",
         "meta": "Próteses dentárias fixas, parciais e removíveis em Itaúna-MG, na Ampla Odontologia.",
         "h1": "Próteses Dentárias em Itaúna-MG",
-        "subtitle": "Prótese fixa, parcial ou removível — Dra. Tatiane Mizael, Ampla Odontologia",
-        "body": "Avaliação individualizada para definir a prótese adequada ao seu caso. "
-                "Agende pelo WhatsApp.",
+        "subtitle": "Dra. Tatiane Mizael — prótese fixa, parcial ou removível em Itaúna",
+        "body": "Avaliação individualizada para definir a prótese adequada ao seu caso.",
         "wa": "Olá, vi o anúncio no Google e quero saber sobre próteses dentárias",
     },
     "convenio": {
         "title": "Atendimento por Convênio Odontológico em Itaúna-MG | Dra. Tatiane Mizael",
         "meta": "Atendimento odontológico por convênio em Itaúna-MG, na Ampla Odontologia.",
         "h1": "Atendimento por Convênio Odontológico",
-        "subtitle": "Ampla Odontologia — Dra. Tatiane Mizael, no centro de Itaúna-MG",
-        "body": "Atendemos diversos convênios odontológicos. Confirme o seu e agende sua avaliação "
-                "diretamente pelo WhatsApp.",
+        "subtitle": "Dra. Tatiane Mizael — Ampla Odontologia, no centro de Itaúna",
+        "body": "Confirme o seu convênio e agende sua avaliação diretamente pelo WhatsApp.",
         "wa": "Olá, vi o anúncio no Google e quero saber sobre atendimento por convênio odontológico",
     },
 }
 
-TEMPLATE = """<!doctype html>
-<html lang="pt-BR">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>{title}</title>
-<meta name="description" content="{meta}">
-<!-- Google tag (gtag.js) -->
-<script async src="https://www.googletagmanager.com/gtag/js?id={gtag_id}"></script>
-<script>
-  window.dataLayer = window.dataLayer || [];
-  function gtag(){{dataLayer.push(arguments);}}
-  gtag('js', new Date());
-  gtag('config', '{gtag_id}');
-</script>
-<style>
-  :root {{
-    --bg: #faf8f6; --card: #ffffff; --text: #2b2622; --muted: #6b6058;
-    --accent: #b98b5e; --whatsapp: #25D366; --whatsapp-dark: #1da851;
-  }}
-  * {{ box-sizing: border-box; }}
-  body {{
-    margin: 0;
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-    background: var(--bg); color: var(--text); line-height: 1.5;
-  }}
-  .wrap {{ max-width: 480px; margin: 0 auto; padding: 0 0 40px; }}
-  .hero {{ position: relative; width: 100%; aspect-ratio: 1.91 / 1; overflow: hidden; }}
-  .hero img {{ width: 100%; height: 100%; object-fit: cover; display: block; }}
-  header.content {{ text-align: center; padding: 28px 24px 8px; }}
-  h1 {{ font-size: 1.5rem; margin: 0 0 8px; color: var(--text); }}
-  .subtitle {{ font-size: 1rem; color: var(--muted); margin: 0 0 20px; }}
-  .cta-wrap {{ padding: 0 24px; text-align: center; }}
-  .cta-btn {{
-    display: inline-flex; align-items: center; justify-content: center; gap: 10px;
-    width: 100%; background: var(--whatsapp); color: #fff; font-size: 1.1rem;
-    font-weight: 600; text-decoration: none; padding: 16px 20px; border-radius: 14px;
-    box-shadow: 0 6px 16px rgba(37, 211, 102, 0.35); transition: background 0.15s ease;
-  }}
-  .cta-btn:active {{ background: var(--whatsapp-dark); }}
-  .cta-btn svg {{ width: 24px; height: 24px; flex-shrink: 0; }}
-  .body-text {{ padding: 24px 24px 8px; text-align: center; color: var(--text); font-size: 0.98rem; }}
-  .portrait-card {{
-    margin: 24px 24px 0; background: var(--card); border-radius: 16px;
-    overflow: hidden; box-shadow: 0 2px 10px rgba(0,0,0,0.06);
-  }}
-  .portrait-card img {{ width: 100%; display: block; }}
-  .portrait-caption {{ padding: 14px 18px 18px; text-align: center; font-size: 0.92rem; color: var(--muted); }}
-  .secondary {{ text-align: center; margin: 20px 24px 0; }}
-  .secondary a {{
-    color: var(--accent); text-decoration: none; font-size: 0.95rem;
-    border-bottom: 1px solid var(--accent); padding-bottom: 2px;
-  }}
-  footer {{
-    margin-top: 32px; padding: 18px 24px 0; border-top: 1px solid #e8e2db;
-    text-align: center; color: var(--muted); font-size: 0.78rem; line-height: 1.6;
-  }}
-</style>
-</head>
-<body>
-  <div class="wrap">
-    <div class="hero">
-      <img src="../img/fachada.jpg" alt="Fachada da Ampla Odontologia em Itaúna-MG">
-    </div>
+# Paginas que mencionam convenio. Revisado em 13/08/2026 com a instancia da ANNA:
+#  - FORA: clareamento, facetas, raiz/harmonizacao (esteticos, particular com a Dra. Tatiane)
+#  - FORA: proteses — no cadastro da ANNA, protese esta com a Dra. Tatiane (particular).
+#    ⏳ PENDENTE confirmar com a Dra. Tatiane; ate la nao afirmamos.
+#  - FORA: bruxismo — placa e terapeutica e PODE ser coberta, mas nao ha dado sobre o que
+#    ESTES planos cobrem nesta clinica. ⏳ PENDENTE confirmar; ate la nao afirmamos.
+MENCIONA_CONVENIO = {"dentista", "limpeza", "canal", "convenio"}
 
-    <header class="content">
-      <h1>{h1}</h1>
-      <p class="subtitle">{subtitle}</p>
-    </header>
+# ⚠️ Linha de texto sobre cartao de beneficio segue FORA das paginas. CFO Art. 44, XIV veda
+# oferecer servicos odontologicos "atraves de cartao de descontos". O Anderson informou em
+# 13/08/2026 que ha contrato com os parceiros e autorizou o VIDEO de parceiros; a decisao e
+# dele, ciente da ressalva.
 
-    <div class="cta-wrap">
-      <a class="cta-btn" href="https://wa.me/{whats}?text={wa_encoded}" target="_blank" rel="noopener" id="whatsapp-cta" onclick="gtag('event', 'conversion', {{'send_to': '{conv_tag}'}});">
-        <svg viewBox="0 0 32 32" fill="currentColor" aria-hidden="true"><path d="M16.001 3C9.373 3 4 8.373 4 15c0 2.362.687 4.564 1.874 6.417L4 29l7.762-1.84A11.94 11.94 0 0 0 16 27c6.627 0 12-5.373 12-12S22.628 3 16.001 3zm0 21.75c-1.99 0-3.85-.55-5.44-1.51l-.39-.23-4.61 1.09 1.13-4.49-.25-.4A9.7 9.7 0 0 1 5.25 15c0-5.93 4.82-10.75 10.75-10.75S26.75 9.07 26.75 15 21.93 24.75 16 24.75zm5.86-8.06c-.32-.16-1.9-.94-2.19-1.05-.29-.11-.51-.16-.72.16-.21.32-.83 1.05-1.02 1.26-.19.21-.37.24-.69.08-.32-.16-1.35-.5-2.57-1.59-.95-.85-1.59-1.9-1.78-2.22-.19-.32-.02-.49.14-.65.14-.14.32-.37.48-.55.16-.19.21-.32.32-.53.11-.21.05-.4-.03-.56-.08-.16-.72-1.74-.99-2.38-.26-.63-.53-.54-.72-.55-.19-.01-.4-.01-.61-.01-.21 0-.56.08-.85.4-.29.32-1.11 1.09-1.11 2.65 0 1.56 1.14 3.07 1.3 3.28.16.21 2.24 3.42 5.42 4.8.76.33 1.35.52 1.81.67.76.24 1.45.21 2 .13.61-.09 1.9-.78 2.17-1.53.27-.75.27-1.4.19-1.53-.08-.13-.29-.21-.61-.37z"/></svg>
-        Falar no WhatsApp
-      </a>
-    </div>
+# Videos institucionais (a Dra. Tatiane falando a camera — nao mostram procedimento, portanto
+# fora da vedacao da Resolucao CFO 196/2019 sobre video de procedimento).
+# Convertidos com avconvert (nativo do macOS) em 720x1280. Ficaram grandes (10-15MB) porque
+# os presets do avconvert nao permitem controlar bitrate; por isso vao com preload="none":
+# so baixam se a pessoa tocar em play, sem afetar o carregamento da pagina.
+VIDEOS = {
+    # Decisao do Anderson em 13/08/2026: o video de PARCEIROS vai para /dentista/, que
+    # concentra 99% dos cliques — a ideia e oferecer um diferencial concreto a quem ja
+    # esta procurando dentista. O de CONVENIO fica na /convenio/, como teste isolado.
+    "dentista": [
+        ("parceiros", "Tem cartão de benefício ou é associado a sindicato? Veja como funciona"),
+    ],
+    "convenio": [
+        ("convenio", "A Dra. Tatiane explica como funciona o atendimento por convênio"),
+    ],
+}
 
-    <p class="body-text">{body}</p>
+# Linha sobre parceiros — so na /dentista/, junto do video. Sem percentual e sem valor:
+# a ANNA informa as condicoes na conversa, mesmo padrao usado para convenio.
+BLOCO_PARCEIROS = (
+    '      <div class="fact">\n'
+    '        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 8h18v11H3z"/>'
+    '<path d="M3 8l3-4h12l3 4"/><path d="M12 8v11"/></svg>\n'
+    '        <span>Tem JADAPAX, cartão de benefício ou é associado a sindicato? '
+    'Consulte as condições pelo WhatsApp</span>\n'
+    '      </div>\n')
+MENCIONA_PARCEIROS = {"dentista"}
 
-    <div class="portrait-card">
-      <img src="../img/dra-tatiane.jpg" alt="Dra. Tatiane Mizael">
-      <p class="portrait-caption">Dra. Tatiane Mizael — Ampla Odontologia</p>
-    </div>
 
-    <div class="cta-wrap" style="margin-top:24px">
-      <a class="cta-btn" href="https://wa.me/{whats}?text={wa_encoded}" target="_blank" rel="noopener" onclick="gtag('event', 'conversion', {{'send_to': '{conv_tag}'}});">
-        <svg viewBox="0 0 32 32" fill="currentColor" aria-hidden="true"><path d="M16.001 3C9.373 3 4 8.373 4 15c0 2.362.687 4.564 1.874 6.417L4 29l7.762-1.84A11.94 11.94 0 0 0 16 27c6.627 0 12-5.373 12-12S22.628 3 16.001 3zm0 21.75c-1.99 0-3.85-.55-5.44-1.51l-.39-.23-4.61 1.09 1.13-4.49-.25-.4A9.7 9.7 0 0 1 5.25 15c0-5.93 4.82-10.75 10.75-10.75S26.75 9.07 26.75 15 21.93 24.75 16 24.75zm5.86-8.06c-.32-.16-1.9-.94-2.19-1.05-.29-.11-.51-.16-.72.16-.21.32-.83 1.05-1.02 1.26-.19.21-.37.24-.69.08-.32-.16-1.35-.5-2.57-1.59-.95-.85-1.59-1.9-1.78-2.22-.19-.32-.02-.49.14-.65.14-.14.32-.37.48-.55.16-.19.21-.32.32-.53.11-.21.05-.4-.03-.56-.08-.16-.72-1.74-.99-2.38-.26-.63-.53-.54-.72-.55-.19-.01-.4-.01-.61-.01-.21 0-.56.08-.85.4-.29.32-1.11 1.09-1.11 2.65 0 1.56 1.14 3.07 1.3 3.28.16.21 2.24 3.42 5.42 4.8.76.33 1.35.52 1.81.67.76.24 1.45.21 2 .13.61-.09 1.9-.78 2.17-1.53.27-.75.27-1.4.19-1.53-.08-.13-.29-.21-.61-.37z"/></svg>
-        Falar no WhatsApp
-      </a>
-    </div>
+def bloco_videos(slug, prefixo):
+    itens = VIDEOS.get(slug)
+    if not itens:
+        return ""
+    partes = ['    <section class="videos" aria-label="Vídeos">',
+              '      <span class="videos-label">Entenda em vídeo</span>']
+    for nome, legenda in itens:
+        partes.append(
+            f'      <figure class="video-card">\n'
+            f'        <video controls playsinline preload="none"\n'
+            f'               poster="{prefixo}video/{nome}-poster.jpg"\n'
+            f'               src="{prefixo}video/{nome}.mp4"></video>\n'
+            f'        <figcaption>{legenda}</figcaption>\n'
+            f'      </figure>')
+    partes.append('    </section>\n')
+    return "\n".join(partes)
 
-    <div class="secondary">
-      <a href="{maps}" target="_blank" rel="noopener">📍 Ver no Google Maps</a>
-    </div>
-
-    <footer>
-      Dra. Tatiane Mizael — CRO MG35169<br>
-      R. Cel. Francisco Manoel Franco, 54 - Setor Centro, Itaúna - MG, 35680-053
-    </footer>
-  </div>
-</body>
-</html>
+GTAG_HEAD = f"""  <!-- Google tag (gtag.js) -->
+  <script async src="https://www.googletagmanager.com/gtag/js?id={GTAG_ID}"></script>
+  <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){{dataLayer.push(arguments);}}
+    gtag('js', new Date());
+    gtag('config', '{GTAG_ID}');
+  </script>
 """
 
-BLOQUEADOS = ["botox", "toxina botul", "garantido", "perfeito", "definitivo",
-              "melhor resultado", "R$", "preço", "promoção"]
+GTAG_BODY = f"""  <script>
+    // Conversao "Clique no WhatsApp" — anexada a todos os botoes .cta-btn
+    document.querySelectorAll('.cta-btn').forEach(function (el) {{
+      el.addEventListener('click', function () {{
+        gtag('event', 'conversion', {{'send_to': '{CONV_TAG}'}});
+      }});
+    }});
+  </script>
+"""
 
-base = os.path.dirname(os.path.abspath(__file__))
-problemas = []
+BLOCO_CONVENIO = (
+    '      <div class="fact">\n'
+    '        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16v12H4z"/>'
+    '<path d="M9 7V5h6v2"/><path d="M4 12h16"/></svg>\n'
+    '        <span>Atendemos diversos convênios odontológicos — confirme o seu pelo WhatsApp</span>\n'
+    '      </div>\n')
 
-for slug, p in PAGINAS.items():
-    html = TEMPLATE.format(
-        title=p["title"], meta=p["meta"], h1=p["h1"], subtitle=p["subtitle"],
-        body=p["body"], wa_encoded=urllib.parse.quote(p["wa"]),
-        whats=WHATS, conv_tag=CONV_TAG, gtag_id=GTAG_ID, maps=MAPS,
-    )
-    # checagem de conformidade antes de gravar
+# Termos que invalidam a pagina. Cada um mapeado para a regra que o proibe.
+BLOQUEADOS = {
+    "botox": "Google Ads — medicamento restrito",
+    "toxina botul": "Google Ads — medicamento restrito",
+    "garantido": "CFO Art. 44, I — promessa de resultado",
+    "definitivo": "CFO Art. 44, I — promessa de resultado",
+    "resultado garantido": "CFO Art. 44, I",
+    "antes e depois": "CFO Art. 44, XII",
+    "r$": "CFO Art. 44, I — preço",
+    "promoção": "CFO Art. 44, I",
+    "gratuito": "CFO Art. 44, I — serviço gratuito",
+    "parcelamento": "CFO Art. 44, I — modalidade de pagamento",
+    "desconto de": "CFO Art. 44, I — desconto explicito",
+}
+# NOTA: "cartão de benefício" saiu desta lista por decisao do Anderson em 13/08/2026,
+# que informou existir contrato com os parceiros. A ressalva do CFO Art. 44, XIV foi
+# apresentada a ele por escrito; a decisao e dele. O percentual (15%/10%) segue
+# BLOQUEADO — a pagina so convida a consultar, e a ANNA informa as condicoes na conversa.
+
+
+def render(template, slug, p):
+    html = template
+    # Subpaginas ficam um nivel abaixo da raiz: img/ e fonts/ sobem um nivel.
+    prefixo = "" if slug == "" else "../"
+
+    # --- textos variaveis ---
+    html = re.sub(r"<title>.*?</title>", f"<title>{p['title']}</title>", html, count=1, flags=re.S)
+    html = re.sub(r'(<meta name="description" content=")[^"]*(">)',
+                  lambda m: m.group(1) + p["meta"] + m.group(2), html, count=1)
+    # Hifen nao-separavel (U+2011) em "Itauna-MG" para o titulo nao quebrar feio
+    # entre "Itauna-" e "MG" no celular.
+    h1 = p["h1"].replace("-MG", "‑MG")
+    html = re.sub(r'(<h1 class="title">).*?(</h1>)',
+                  lambda m: m.group(1) + h1 + m.group(2), html, count=1, flags=re.S)
+    html = re.sub(r'(<p class="subtitle">).*?(</p>)',
+                  lambda m: m.group(1) + p["subtitle"] + m.group(2), html, count=1, flags=re.S)
+    html = re.sub(r'(<p class="description">).*?(</p>)',
+                  lambda m: m.group(1) + p["body"] + m.group(2), html, count=1, flags=re.S)
+
+    # --- horario ---
+    html = re.sub(r"(<strong>Atendimento:</strong>)[^<]*", rf"\1 {HORARIO}", html, count=1)
+
+    # --- blocos condicionais ---
+    html = html.replace("{BLOCO_CONVENIO}",
+                        BLOCO_CONVENIO if slug in MENCIONA_CONVENIO else "")
+    html = html.replace("{BLOCO_PARCEIROS}",
+                        BLOCO_PARCEIROS if slug in MENCIONA_PARCEIROS else "")
+    html = html.replace("{BLOCO_VIDEOS}", bloco_videos(slug, prefixo))
+
+    # --- links e caminhos ---
+    wa_url = f"https://wa.me/{WHATS}?text={urllib.parse.quote(p['wa'])}"
+    html = html.replace("{LINK_WHATSAPP}", wa_url)
+    html = html.replace("{LINK_MAPS}", MAPS)
+    html = html.replace("{LINK_AVALIACOES}", AVALIACOES)
+    html = html.replace("{PREFIXO}", prefixo)
+
+    # --- rastreamento de conversao ---
+    html = html.replace("</head>", GTAG_HEAD + "</head>", 1)
+    html = html.replace("</body>", GTAG_BODY + "</body>", 1)
+    return html
+
+
+def texto_visivel(html):
+    """So o texto que o paciente le: sem <style>, <script>, atributos nem URLs.
+    Evita falso positivo (ex.: '%' em 'width:100%' ou em '%C3%BA' de URL)."""
+    t = re.sub(r"<style.*?</style>", " ", html, flags=re.S | re.I)
+    t = re.sub(r"<script.*?</script>", " ", t, flags=re.S | re.I)
+    t = re.sub(r"<[^>]+>", " ", t)          # remove tags e seus atributos
+    return re.sub(r"\s+", " ", t).lower()
+
+
+def conferir(slug, html):
+    problemas = []
     low = html.lower()
-    for termo in BLOQUEADOS:
-        if termo.lower() in low:
-            problemas.append(f"{slug}: contem termo proibido {termo!r}")
+    visivel = texto_visivel(html)
+    for termo, regra in BLOQUEADOS.items():
+        if termo in visivel:
+            problemas.append(f"/{slug or '(raiz)'}: termo proibido {termo!r} — {regra}")
+    # Percentual de desconto no texto visivel (ex.: "15%", "10 %")
+    for m in re.findall(r"\d+\s*%", visivel):
+        problemas.append(f"/{slug or '(raiz)'}: percentual no texto {m!r} — CFO Art. 44, I")
+    # O marcador de origem precisa existir para a ANNA medir (doc 09, R2).
+    # Comparar em minusculas dos dois lados: urllib.quote gera hex maiusculo (%C3%BA).
+    if "vi%20o%20an%c3%bancio%20no%20google" not in low:
+        problemas.append(f"/{slug or '(raiz)'}: perdeu o marcador 'vi o anúncio no Google'")
+    # nada de dependencia externa
+    for padrao in ("gpteng", "lovable", "googlefonts", "fonts.googleapis"):
+        if padrao in low:
+            problemas.append(f"/{slug or '(raiz)'}: dependência externa {padrao!r}")
+    # placeholders nao resolvidos
+    for ph in re.findall(r"\{LINK_[A-Z]+\}", html):
+        problemas.append(f"/{slug or '(raiz)'}: placeholder não substituído {ph}")
+    return problemas
 
-    pasta = os.path.join(base, slug)
-    os.makedirs(pasta, exist_ok=True)
-    with open(os.path.join(pasta, "index.html"), "w", encoding="utf-8") as f:
-        f.write(html)
-    print(f"[OK] /{slug}/index.html  — H1: {p['h1']}")
 
-print()
-if problemas:
-    print("PROBLEMAS DE CONFORMIDADE:")
-    for x in problemas:
-        print("  [X]", x)
-else:
-    print("[OK] Nenhuma promessa de resultado, preco ou termo bloqueado encontrado.")
-print(f"[OK] {len(PAGINAS)} paginas geradas. NADA foi publicado ainda.")
+def main():
+    base = os.path.dirname(os.path.abspath(__file__))
+    tpl_path = os.path.join(base, "_template.html")
+    if not os.path.exists(tpl_path):
+        print(f"ERRO: template não encontrado em {tpl_path}", file=sys.stderr)
+        return 1
+    template = open(tpl_path, encoding="utf-8").read()
+
+    todos_problemas = []
+    gerados = []
+    for slug, p in PAGINAS.items():
+        html = render(template, slug, p)
+        todos_problemas += conferir(slug, html)
+
+        if slug:
+            pasta = os.path.join(base, slug)
+            os.makedirs(pasta, exist_ok=True)
+            destino = os.path.join(pasta, "index.html")
+        else:
+            destino = os.path.join(base, "index.html")
+        with open(destino, "w", encoding="utf-8") as f:
+            f.write(html)
+        conv = "convênio" if slug in MENCIONA_CONVENIO else "—"
+        gerados.append((slug or "(raiz)", p["h1"], conv, len(html)))
+
+    for slug, h1, conv, tam in gerados:
+        print(f"[OK] /{slug:<12} {tam/1024:5.1f}KB  {conv:<8}  {h1}")
+
+    print()
+    if todos_problemas:
+        print("PROBLEMAS DE CONFORMIDADE — nada deve ser publicado:")
+        for x in todos_problemas:
+            print("  [X]", x)
+        return 2
+    print("[OK] Conformidade: sem termo proibido, sem dependência externa,")
+    print("     marcador de origem presente, placeholders resolvidos.")
+    print(f"[OK] {len(gerados)} páginas geradas. NADA foi publicado ainda.")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
