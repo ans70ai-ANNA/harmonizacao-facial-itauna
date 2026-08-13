@@ -62,10 +62,12 @@
     .hero::after {
       content: '';
       position: absolute; inset: 0;
+      /* Escurece so a base, onde fica o texto — preserva a luz da foto no topo. */
       background: linear-gradient(180deg,
-        rgba(20,17,14,0.15) 0%,
-        rgba(20,17,14,0.30) 45%,
-        rgba(20,17,14,0.82) 100%);
+        rgba(18,15,12,0) 0%,
+        rgba(18,15,12,0.04) 42%,
+        rgba(18,15,12,0.52) 71%,
+        rgba(18,15,12,0.88) 100%);
     }
     .hero img {
       position: absolute; inset: 0;
@@ -253,11 +255,11 @@
   <div class="wrap">
 
     <header class="hero">
-      <img src="../img/fachada.jpg" alt="Fachada da Clínica Ampla Odontologia, no centro de Itaúna-MG" fetchpriority="high">
+      <img src="../img/dra-tatiane-hero.jpg" alt="Dra. Tatiane Mizael, cirurgiã-dentista em Itaúna-MG" fetchpriority="high">
       <div class="hero-content">
-        <span class="eyebrow">Itaúna · Minas Gerais</span>
+        <span class="eyebrow">Cirurgiã-dentista · CRO-MG 35169</span>
         <h1 class="title">Dentista em Itaúna‑MG</h1>
-        <p class="subtitle">Clínica Ampla Odontologia, no centro de Itaúna — Dra. Tatiane Mizael</p>
+        <p class="subtitle">Dra. Tatiane Mizael — Ampla Odontologia, no centro de Itaúna</p>
       </div>
     </header>
 
